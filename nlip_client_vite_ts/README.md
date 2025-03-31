@@ -1,4 +1,7 @@
 # nlip_client_vite_ts
+
+NLIP August 2024
+
 The React/Typescript application serves as a frontend that uses NLIP to interact with the NLIP backend. It supports both textual and binary input (e.g., images) and converts user inputs into a structured NLIP message format before forwarding them to the backend and subsequently receiving a response.
 
 ## Set Up
