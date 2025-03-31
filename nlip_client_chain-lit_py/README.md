@@ -1,5 +1,7 @@
 # nlip_client_chain-lit_py
 
+NLIP August 2024
+
 The Chainlit application serves as a frontend interface that uses NLIP to interact with the backend. It supports either just textual or both textual and binary input (e.g., images, audio files) and converts user inputs into a structured message format before forwarding them to the backend.
 
 ## Installation
