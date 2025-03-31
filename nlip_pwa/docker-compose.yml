@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  app:
+    container_name: nlip_pwa
+    build: .
+    ports:
+      - '8000:8000'
+    volumes:
+      - .:/app
+    environment:
+      - NODE_ENV=development
+    command: npm run start
+    restart: unless-stopped

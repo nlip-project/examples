@@ -1,0 +1,20 @@
+# Ignore home and chat pages
+src/pages/home/
+src/pages/chat/
+
+# Common patterns to ignore
+node_modules/
+dist/
+build/
+coverage/
+*.min.js
+*.bundle.js
+
+# Ignore generated files
+*.generated.*
+*.config.js
+*.config.mjs
+
+# Ignore test files
+*.test.js
+*.spec.js 
