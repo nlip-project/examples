@@ -84,13 +84,6 @@ export async function sendInitialMessage(): Promise<void> {
     return;
   }
 
-  // Simulate server response indicating it doesn't store chat history
-  serverStoresChatHistory = false;
-  hasSentInitialMessage = true;
-
-  // For now, we'll just set the flags without making an actual request
-  // In the future, this would be replaced with actual server communication
-  /*
   const request: Message = {
     format: 'text',
     subformat: 'english',
@@ -126,67 +119,34 @@ export async function sendInitialMessage(): Promise<void> {
     console.error('Error sending initial message:', error);
     throw error;
   }
-  */
-}
-
-/**
- * Format chat history for sending to server
- */
-function formatChatHistory(session: ChatSession): string {
-  const history = session.messages
-    .map((msg) => `${msg.type === 'user' ? 'user' : 'AI'}: ${msg.content}`)
-    .join('\n');
-  console.log('Formatted chat history:', history);
-  return history;
 }
 
 /**
  * Get the current chat session from localStorage
  */
 function getCurrentChatSession(): ChatSession | null {
-  // Check if localStorage is available
-  if (typeof localStorage === 'undefined') {
-    console.error('localStorage is not available');
-    return null;
-  }
-
-  // Log all localStorage keys for debugging
-  console.log(
-    'localStorage keys:',
-    Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))
-  );
-
   const savedSessions = localStorage.getItem('chat-sessions');
-  console.log('chat-sessions value:', savedSessions);
+  if (!savedSessions) return null;
 
-  if (!savedSessions) {
-    console.log('No chat sessions found');
-    return null;
-  }
+  const sessions: ChatSession[] = JSON.parse(savedSessions);
+  const currentSessionId = sessions[0]?.id; // Assuming first session is current
+  return sessions.find((s) => s.id === currentSessionId) || null;
+}
 
-  try {
-    const sessions: ChatSession[] = JSON.parse(savedSessions);
-    console.log('Number of sessions:', sessions.length);
-
-    if (sessions.length === 0) {
-      console.log('No sessions available');
-      return null;
-    }
-
-    const currentSessionId = sessions[0].id;
-    const currentSession = sessions.find((s) => s.id === currentSessionId);
-
-    if (!currentSession) {
-      console.log('Current session not found');
-      return null;
-    }
-
-    console.log('Current session messages:', currentSession.messages.length);
-    return currentSession;
-  } catch (error) {
-    console.error('Error parsing sessions:', error);
-    return null;
-  }
+/**
+ * Format chat history for sending to server
+ */
+function formatChatHistory(session: ChatSession): string {
+  return JSON.stringify({
+    sessionId: session.id,
+    title: session.title,
+    messages: session.messages.map((msg) => ({
+      type: msg.type,
+      content: msg.content,
+      timestamp: msg.timestamp,
+      image: msg.image,
+    })),
+  });
 }
 
 /**
@@ -194,28 +154,32 @@ function getCurrentChatSession(): ChatSession | null {
  */
 export async function sendTextMessage(
   text: string,
-  includeHistory = true
+  includeHistory: boolean = true
 ): Promise<string> {
   // Ensure initial message has been sent
   await sendInitialMessage();
 
-  let content = text;
-  if (!serverStoresChatHistory && includeHistory) {
-    const currentSession = getCurrentChatSession();
-    if (currentSession) {
-      const history = formatChatHistory(currentSession);
-      content = `${history}\n${text}`;
-      console.log('Final message content with history:', content);
-    }
-  }
-
   const request: Message = {
     format: 'text',
     subformat: 'english',
-    content,
+    content: text,
   };
 
-  console.log('Sending request:', request);
+  // If server doesn't store chat history and includeHistory is true,
+  // include the current chat session history
+  if (!serverStoresChatHistory && includeHistory) {
+    const currentSession = getCurrentChatSession();
+    if (currentSession) {
+      request.submessages = [
+        {
+          format: 'text',
+          subformat: 'english',
+          content: formatChatHistory(currentSession),
+          label: 'chat_history',
+        },
+      ];
+    }
+  }
 
   try {
     const response = await fetch(`${API_ENDPOINTS.nlip}/`, {
@@ -245,7 +209,7 @@ export async function sendImageMessage(
   prompt: string,
   base64Image: string,
   mimeType: string,
-  includeHistory = true
+  includeHistory: boolean = true
 ): Promise<string> {
   const imageFormat = mimeType.split('/')[1].toLowerCase() as Subformat;
 
@@ -256,20 +220,10 @@ export async function sendImageMessage(
     );
   }
 
-  let content = prompt || 'What do you see in this image?';
-  if (!serverStoresChatHistory && includeHistory) {
-    const currentSession = getCurrentChatSession();
-    if (currentSession) {
-      const history = formatChatHistory(currentSession);
-      content = `${history}\n${content}`;
-      console.log('Final message content with history:', content);
-    }
-  }
-
   const request: Message = {
     format: 'text',
     subformat: 'english',
-    content,
+    content: prompt || 'What do you see in this image?',
     submessages: [
       {
         format: 'binary',
@@ -279,7 +233,19 @@ export async function sendImageMessage(
     ],
   };
 
-  console.log('Sending request:', request);
+  // If server doesn't store chat history and includeHistory is true,
+  // include the current chat session history
+  if (!serverStoresChatHistory && includeHistory) {
+    const currentSession = getCurrentChatSession();
+    if (currentSession) {
+      request.submessages?.push({
+        format: 'text',
+        subformat: 'english',
+        content: formatChatHistory(currentSession),
+        label: 'chat_history',
+      });
+    }
+  }
 
   try {
     const response = await fetch(`${API_ENDPOINTS.nlip}/`, {

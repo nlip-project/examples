@@ -1,0 +1,29 @@
+{
+  "identification": {
+    "speakerUri": "tag:nlip-pwa,2025:0001",
+    "serviceUrl": "http://localhost:3000",
+    "organization": "NLIP",
+    "conversationalName": "NLIP Transcription Service",
+    "synopsis": "A transcription service that converts speech to text in real-time",
+    "department": "Speech Processing",
+    "role": "Transcription Assistant"
+  },
+  "capabilities": {
+    "keyphrases": [
+      "transcribe",
+      "speech to text",
+      "voice transcription",
+      "real-time transcription"
+    ],
+    "languages": ["en-US"],
+    "descriptions": [
+      "Real-time speech-to-text transcription",
+      "Supports continuous audio streaming",
+      "Provides interim and final transcription results"
+    ],
+    "supportedLayers": {
+      "input": ["audio/webm;codecs=opus"],
+      "output": ["text/plain"]
+    }
+  }
+}

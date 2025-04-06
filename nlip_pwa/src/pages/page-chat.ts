@@ -7,7 +7,6 @@
 
 /* stylelint-disable */
 import { SignalWatcher } from '@lit-labs/signals';
-import { Router } from '@vaadin/router';
 import { html, css } from 'lit';
 import { customElement, query, state } from 'lit/decorators.js';
 import { ref, createRef } from 'lit/directives/ref.js';
@@ -34,9 +33,20 @@ interface ChatMessage {
   };
 }
 
+interface ChatSession {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  createdAt: number;
+  lastUpdated: number;
+}
+
 @customElement('page-chat')
 export class PageChat extends SignalWatcher(PageElement) {
   @state() private messages: ChatMessage[] = [];
+  @state() private chatSessions: ChatSession[] = [];
+  @state() private currentSessionId: string | null = null;
+  @state() private showChatList = false;
   @query('#chat-input') chatInput?: HTMLTextAreaElement;
   @query('#image-input') imageInput?: HTMLInputElement;
   @query('#document-input') documentInput?: HTMLInputElement;
@@ -61,7 +71,7 @@ export class PageChat extends SignalWatcher(PageElement) {
   @state() private currentPartial = '';
   @state() private partialTranscriptions: string[] = [];
 
-  private static readonly STORAGE_KEY = 'chat-history';
+  private static readonly STORAGE_KEY = 'chat-sessions';
   private _typingTimeout: NodeJS.Timeout | null = null;
   private documentClickHandler: (e: MouseEvent) => void;
   private documentInputRef = createRef<HTMLInputElement>();
@@ -105,15 +115,114 @@ export class PageChat extends SignalWatcher(PageElement) {
     }
   }
 
-  private loadChatHistory() {
-    const savedHistory = localStorage.getItem(PageChat.STORAGE_KEY);
-    if (savedHistory) {
-      this.messages = JSON.parse(savedHistory);
+  private loadChatSessions() {
+    console.log('Loading chat sessions from localStorage...');
+    const savedSessions = localStorage.getItem(PageChat.STORAGE_KEY);
+    console.log('Retrieved from localStorage:', savedSessions);
+    if (savedSessions) {
+      this.chatSessions = JSON.parse(savedSessions);
+      console.log('Parsed chat sessions:', this.chatSessions);
+      if (this.chatSessions.length > 0) {
+        this.currentSessionId = this.chatSessions[0].id;
+        this.messages = this.chatSessions[0].messages;
+        console.log('Set current session:', this.currentSessionId);
+        console.log('Current session messages:', this.messages);
+      }
     }
   }
 
-  private saveChatHistory() {
-    localStorage.setItem(PageChat.STORAGE_KEY, JSON.stringify(this.messages));
+  private saveChatSessions() {
+    console.log('Saving chat sessions to localStorage...');
+    console.log('Current sessions to save:', this.chatSessions);
+    localStorage.setItem(
+      PageChat.STORAGE_KEY,
+      JSON.stringify(this.chatSessions)
+    );
+    console.log('Saved to localStorage with key:', PageChat.STORAGE_KEY);
+  }
+
+  private createNewChatSession() {
+    // If there are existing messages, create a title from the first message
+    let title = 'New Chat';
+    if (this.messages.length > 0) {
+      const firstMessage = this.messages[0].content;
+      title =
+        firstMessage.length > 30
+          ? firstMessage.substring(0, 30) + '...'
+          : firstMessage;
+    }
+
+    const newSession: ChatSession = {
+      id: this.generateMessageId(),
+      title,
+      messages: [],
+      createdAt: Date.now(),
+      lastUpdated: Date.now(),
+    };
+
+    // If there's a current session, update its lastUpdated time
+    if (this.currentSessionId) {
+      const currentSessionIndex = this.chatSessions.findIndex(
+        (s) => s.id === this.currentSessionId
+      );
+      if (currentSessionIndex !== -1) {
+        this.chatSessions[currentSessionIndex].lastUpdated = Date.now();
+      }
+    }
+
+    this.chatSessions = [newSession, ...this.chatSessions];
+    this.currentSessionId = newSession.id;
+    this.messages = [];
+    this.saveChatSessions();
+  }
+
+  private switchChatSession(sessionId: string) {
+    const session = this.chatSessions.find((s) => s.id === sessionId);
+    if (session) {
+      this.currentSessionId = sessionId;
+      this.messages = session.messages;
+      this.showChatList = false;
+      this.scrollToBottom();
+    }
+  }
+
+  private deleteChatSession(sessionId: string) {
+    if (
+      confirm(
+        'Are you sure you want to delete this chat? This action cannot be undone.'
+      )
+    ) {
+      this.chatSessions = this.chatSessions.filter((s) => s.id !== sessionId);
+      if (this.currentSessionId === sessionId) {
+        if (this.chatSessions.length > 0) {
+          this.currentSessionId = this.chatSessions[0].id;
+          this.messages = this.chatSessions[0].messages;
+        } else {
+          this.currentSessionId = null;
+          this.messages = [];
+        }
+      }
+      this.saveChatSessions();
+    }
+  }
+
+  private updateCurrentSession() {
+    console.log('Updating current session...');
+    if (this.currentSessionId) {
+      const sessionIndex = this.chatSessions.findIndex(
+        (s) => s.id === this.currentSessionId
+      );
+      if (sessionIndex !== -1) {
+        this.chatSessions[sessionIndex].messages = this.messages;
+        this.chatSessions[sessionIndex].lastUpdated = Date.now();
+        console.log('Updated session:', this.chatSessions[sessionIndex]);
+        this.saveChatSessions();
+      } else {
+        console.log('Current session ID not found in sessions array');
+      }
+    } else {
+      console.log('No current session ID set');
+    }
   }
 
   private generateMessageId(): string {
@@ -125,6 +234,7 @@ export class PageChat extends SignalWatcher(PageElement) {
     content: string,
     image?: { data: string; type: string } | null
   ) {
+    console.log('Adding new message:', { type, content, image });
     const message: ChatMessage = {
       type,
       content,
@@ -133,7 +243,8 @@ export class PageChat extends SignalWatcher(PageElement) {
       ...(image && { image }),
     };
     this.messages = [...this.messages, message];
-    this.saveChatHistory();
+    console.log('Updated messages:', this.messages);
+    this.updateCurrentSession();
     this.scrollToBottom();
   }
 
@@ -203,6 +314,12 @@ export class PageChat extends SignalWatcher(PageElement) {
         };
         sessionStorage.removeItem('pendingDocumentData');
         sessionStorage.removeItem('pendingDocumentContent');
+      }
+
+      // Create a new session if none exists
+      if (!this.currentSessionId) {
+        console.log('No current session, creating new one...');
+        this.createNewChatSession();
       }
 
       // Add user message to chat
@@ -475,7 +592,7 @@ export class PageChat extends SignalWatcher(PageElement) {
         content: textarea.value.trim(),
       };
       this.messages = updatedMessages;
-      this.saveChatHistory();
+      this.updateCurrentSession();
       this.showSuccess();
     }
     this.editingMessageId = null;
@@ -652,15 +769,68 @@ export class PageChat extends SignalWatcher(PageElement) {
       </div>
 
       <div class="header">
-        <h2>Chat</h2>
-        <button class="clear-history-button" @click=${this.clearChatHistory}>
+        <button
+          class="history-button"
+          @click=${() => (this.showChatList = !this.showChatList)}
+        >
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path
-              d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+              d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"
             />
           </svg>
-          Clear History
         </button>
+        <h2>Chat</h2>
+        <button class="new-chat-button" @click=${this.createNewChatSession}>
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="sidebar ${this.showChatList ? 'show' : ''}">
+        <div class="sidebar-header">
+          <h3>Chat History</h3>
+          <button
+            class="close-sidebar"
+            @click=${() => (this.showChatList = false)}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+              />
+            </svg>
+          </button>
+        </div>
+        <div class="chat-list">
+          ${this.chatSessions.map(
+            (session) => html`
+              <div
+                class="chat-item ${session.id === this.currentSessionId
+                  ? 'active'
+                  : ''}"
+                @click=${() => this.switchChatSession(session.id)}
+              >
+                <div class="chat-item-title">${session.title}</div>
+                <div class="chat-item-date">
+                  ${new Date(session.lastUpdated).toLocaleString()}
+                </div>
+                <button
+                  class="delete-chat"
+                  @click=${(e: Event) => {
+                    e.stopPropagation();
+                    this.deleteChatSession(session.id);
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                      d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                    />
+                  </svg>
+                </button>
+              </div>
+            `
+          )}
+        </div>
       </div>
 
       <div class="chat-container">
@@ -945,16 +1115,37 @@ export class PageChat extends SignalWatcher(PageElement) {
     document.head.appendChild(meta);
 
     // Load chat history from localStorage
-    this.loadChatHistory();
+    this.loadChatSessions();
 
     // Add click listener with proper reference
     document.addEventListener('click', this.documentClickHandler);
 
-    // Check for chatData from home page
-    const chatDataString = sessionStorage.getItem('chatData');
-    if (chatDataString) {
+    // Check for chat data from sessionStorage
+    const chatDataStr = sessionStorage.getItem('chatData');
+    if (chatDataStr) {
       try {
-        const chatData = JSON.parse(chatDataString);
+        const chatData = JSON.parse(chatDataStr);
+
+        // If we should create a new chat (coming from homepage)
+        if (chatData.shouldCreateNewChat) {
+          // Create a new chat session
+          const newSession: ChatSession = {
+            id: this.generateMessageId(),
+            title:
+              chatData.userPrompt.length > 30
+                ? chatData.userPrompt.substring(0, 30) + '...'
+                : chatData.userPrompt,
+            messages: [],
+            createdAt: Date.now(),
+            lastUpdated: Date.now(),
+          };
+
+          // Add the new session to the beginning of the list
+          this.chatSessions = [newSession, ...this.chatSessions];
+          this.currentSessionId = newSession.id;
+          this.messages = [];
+          this.saveChatSessions();
+        }
 
         // Wait for the chat input to be available
         requestAnimationFrame(() => {
@@ -1075,33 +1266,36 @@ export class PageChat extends SignalWatcher(PageElement) {
       width: 100%;
       max-width: min(90vw, 800px);
       margin: 0 auto;
-      padding: 1rem;
+      padding: clamp(0.75rem, 2vw, 1rem);
       background: rgb(245 245 247 / 90%);
       backdrop-filter: blur(10px);
     }
 
-    .clear-history-button {
+    .history-button,
+    .new-chat-button {
       display: flex;
-      gap: 8px;
+      justify-content: center;
       align-items: center;
-      padding: 8px 16px;
+      width: clamp(32px, 5vw, 40px);
+      height: clamp(32px, 5vw, 40px);
+      padding: 0;
       border: none;
-      border-radius: 8px;
-      background: #ef4444;
-      color: white;
-      font-weight: 500;
-      font-size: 14px;
+      border-radius: clamp(6px, 1.5vw, 8px);
+      background: #f0f0f0;
+      color: #64748b;
       cursor: pointer;
       transition: all 0.2s;
     }
 
-    .clear-history-button:hover {
-      background: #dc2626;
+    .history-button:hover,
+    .new-chat-button:hover {
+      background: #e2e8f0;
     }
 
-    .clear-history-button svg {
-      width: 16px;
-      height: 16px;
+    .history-button svg,
+    .new-chat-button svg {
+      width: clamp(20px, 4vw, 24px);
+      height: clamp(20px, 4vw, 24px);
     }
 
     .message {
@@ -1617,16 +1811,16 @@ export class PageChat extends SignalWatcher(PageElement) {
       position: fixed;
       bottom: 24px;
       left: 50%;
-      transform: translateX(-50%);
-      width: calc(100% - 32px);
-      max-width: 600px;
+      z-index: 1000;
       display: flex;
       gap: 12px;
+      width: calc(100% - 32px);
+      max-width: 600px;
       padding: 12px;
       border-radius: 16px;
       background: white;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      z-index: 1000;
+      box-shadow: 0 4px 12px rgb(0 0 0 / 10%);
+      transform: translateX(-50%);
     }
 
     .chat-input-wrapper {
@@ -1638,23 +1832,23 @@ export class PageChat extends SignalWatcher(PageElement) {
 
     .chat-input {
       flex: 1;
+      min-height: unset;
+      max-height: unset;
       padding: 12px 16px;
       border: 2px solid #e2e8f0;
       border-radius: 12px;
       background: white;
       color: #1e293b;
       font-size: 16px;
-      transition: all 0.2s;
-      min-height: unset;
-      max-height: unset;
       resize: none;
+      transition: all 0.2s;
     }
 
     .chat-input:focus {
-      outline: none;
       border-color: #2563eb;
       background: white;
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      box-shadow: 0 0 0 3px rgb(37 99 235 / 10%);
+      outline: none;
     }
 
     .chat-input::placeholder {
@@ -1662,6 +1856,9 @@ export class PageChat extends SignalWatcher(PageElement) {
     }
 
     .audio {
+      display: flex;
+      justify-content: center;
+      align-items: center;
       width: 40px;
       height: 40px;
       padding: 0;
@@ -1670,9 +1867,6 @@ export class PageChat extends SignalWatcher(PageElement) {
       background: #f0f0f0;
       color: #64748b;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       transition: all 0.2s;
     }
 
@@ -1694,15 +1888,15 @@ export class PageChat extends SignalWatcher(PageElement) {
 
     .image-upload-button,
     .send-button {
+      display: flex;
+      justify-content: center;
+      align-items: center;
       width: 40px;
       height: 40px;
       padding: 0;
       border: none;
       border-radius: 10px;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       transition: all 0.2s;
     }
 
@@ -1747,6 +1941,150 @@ export class PageChat extends SignalWatcher(PageElement) {
       .send-button {
         width: 36px;
         height: 36px;
+      }
+    }
+
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 1001;
+      width: clamp(250px, 30vw, 300px);
+      height: 100vh;
+      background: white;
+      box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+      transition: transform 0.3s ease;
+      transform: translateX(-100%);
+    }
+
+    .sidebar.show {
+      transform: translateX(0);
+    }
+
+    .sidebar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: clamp(0.75rem, 2vw, 1rem);
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .sidebar-header h3 {
+      margin: 0;
+      color: #1e293b;
+      font-size: clamp(1rem, 2vw, 1.2rem);
+    }
+
+    .close-sidebar {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: clamp(28px, 4vw, 32px);
+      height: clamp(28px, 4vw, 32px);
+      padding: 0;
+      border: none;
+      border-radius: clamp(4px, 1.5vw, 6px);
+      background: #f0f0f0;
+      color: #64748b;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .close-sidebar:hover {
+      background: #e2e8f0;
+    }
+
+    .close-sidebar svg {
+      width: clamp(16px, 3vw, 20px);
+      height: clamp(16px, 3vw, 20px);
+    }
+
+    .chat-list {
+      overflow-y: auto;
+      max-height: calc(100vh - clamp(45px, 8vw, 60px));
+      padding: clamp(0.75rem, 2vw, 1rem);
+    }
+
+    .chat-item {
+      position: relative;
+      margin-bottom: clamp(0.25rem, 1vw, 0.5rem);
+      padding: clamp(0.75rem, 2vw, 1rem);
+      border-radius: clamp(6px, 1.5vw, 8px);
+      background: #f8fafc;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .chat-item:hover {
+      background: #f1f5f9;
+    }
+
+    .chat-item.active {
+      background: #e0f2fe;
+    }
+
+    .chat-item-title {
+      margin-bottom: clamp(0.125rem, 0.5vw, 0.25rem);
+      color: #1e293b;
+      font-weight: 500;
+      font-size: clamp(0.875rem, 2vw, 1rem);
+    }
+
+    .chat-item-date {
+      color: #64748b;
+      font-size: clamp(0.75rem, 1.5vw, 0.8rem);
+    }
+
+    .delete-chat {
+      position: absolute;
+      top: clamp(0.25rem, 1vw, 0.5rem);
+      right: clamp(0.25rem, 1vw, 0.5rem);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: clamp(20px, 3vw, 24px);
+      height: clamp(20px, 3vw, 24px);
+      padding: 0;
+      border: none;
+      border-radius: clamp(3px, 1vw, 4px);
+      background: none;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .delete-chat:hover {
+      background: #f1f5f9;
+      color: #ef4444;
+    }
+
+    .delete-chat svg {
+      width: clamp(14px, 2.5vw, 16px);
+      height: clamp(14px, 2.5vw, 16px);
+    }
+
+    @media (max-width: 480px) {
+      .sidebar {
+        width: 100%;
+      }
+
+      .chat-item {
+        margin-bottom: 0.5rem;
+        padding: 1rem;
+      }
+
+      .chat-item-title {
+        font-size: 1rem;
+      }
+
+      .chat-item-date {
+        font-size: 0.8rem;
+      }
+    }
+
+    @media (max-height: 600px) {
+      .chat-list {
+        max-height: calc(100vh - clamp(40px, 7vw, 55px));
       }
     }
   `;

@@ -3,8 +3,8 @@ import path from 'path';
 import { SpeechClient, protos } from '@google-cloud/speech';
 import cors from 'cors';
 import express from 'express';
-import multer from 'multer';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,61 +33,31 @@ try {
   }
 }
 
-// Multer for file uploads (in-memory)
-const upload = multer({ storage: multer.memoryStorage() });
-
 // Enable CORS
 app.use(
   cors({
-    origin: [
-      'http://localhost:8000',
-      'http://127.0.0.1:8000',
-      'https://voice.pipzza.pw',
-      'http://voice.pipzza.pw',
-    ],
+    origin: ['http://localhost:8000', 'http://127.0.0.1:8000'],
     methods: ['GET', 'POST', 'OPTIONS'],
     credentials: true,
   })
 );
 
+// Add JSON body parsing
+app.use(express.json());
+
 // Store active streams and SSE clients by session ID
 const activeStreams = new Map<string, any>();
 const sseClients = new Map<string, any>();
 
-// Batch transcription API endpoint
-app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
+// OVON Assistant Manifest endpoint
+app.get('/manifest', (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No audio file uploaded.' });
-    }
-
-    const audioBytes = req.file.buffer.toString('base64');
-    const request: protos.google.cloud.speech.v1.IRecognizeRequest = {
-      audio: { content: audioBytes },
-      config: {
-        encoding:
-          protos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding
-            .WEBM_OPUS,
-        sampleRateHertz: 48000,
-        languageCode: 'en-US',
-        enableAutomaticPunctuation: true,
-      },
-    };
-
-    const [response] = await speechClient.recognize(request);
-    const transcription =
-      response.results?.map(
-        (result: protos.google.cloud.speech.v1.ISpeechRecognitionResult) =>
-          result.alternatives?.[0]?.transcript || ''
-      ) || [];
-    const finalTranscription = transcription.join('\n');
-
-    res.json({ transcription: finalTranscription });
-  } catch (err) {
-    console.error('Error in batch transcription:', err);
-    res
-      .status(500)
-      .json({ error: err instanceof Error ? err.message : 'Unknown error' });
+    const manifestPath = path.join(__dirname, 'assistant-manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    res.json(manifest);
+  } catch (error) {
+    console.error('Error serving manifest:', error);
+    res.status(500).json({ error: 'Failed to serve manifest' });
   }
 });
 
@@ -102,18 +72,11 @@ app.get('/stream/:sessionId', (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
-  // Send an initial connection message
-  res.write('data: {"connected":true}\n\n');
-
-  // Store the client connection
   sseClients.set(sessionId, res);
 
-  // Handle client disconnect
   req.on('close', () => {
     console.log(`SSE client disconnected: ${sessionId}`);
     sseClients.delete(sessionId);
-
-    // Clean up any active stream
     const stream = activeStreams.get(sessionId);
     if (stream) {
       stream.end();
@@ -125,11 +88,21 @@ app.get('/stream/:sessionId', (req, res) => {
 // Start a new transcription stream
 app.post('/start/:sessionId', async (req, res) => {
   const sessionId = req.params.sessionId;
-  console.log(`Start stream request for session: ${sessionId}`);
+  const envelope = req.body;
 
-  // Wait briefly for SSE connection to be established
+  // Validate OVON envelope
+  if (
+    !envelope?.ovon?.conversation?.id ||
+    envelope.ovon.conversation.id !== sessionId
+  ) {
+    return res
+      .status(400)
+      .json({ error: 'Invalid OVON envelope or session ID mismatch' });
+  }
+
+  // Wait for SSE connection
   const maxRetries = 5;
-  const retryDelay = 100; // ms
+  const retryDelay = 100;
   let retries = 0;
 
   while (!sseClients.has(sessionId) && retries < maxRetries) {
@@ -137,22 +110,12 @@ app.post('/start/:sessionId', async (req, res) => {
     retries++;
   }
 
-  // Check if we have a client connection
   const client = sseClients.get(sessionId);
   if (!client) {
-    console.error(
-      `No SSE connection found for session: ${sessionId} after ${retries} retries`
-    );
-    return res
-      .status(400)
-      .json({
-        error:
-          'No active SSE connection for this session. Please refresh and try again.',
-      });
+    return res.status(400).json({ error: 'No active SSE connection' });
   }
 
   try {
-    // Create a new streamingRecognize request
     const recognizeStream = speechClient
       .streamingRecognize({
         config: {
@@ -166,36 +129,72 @@ app.post('/start/:sessionId', async (req, res) => {
         interimResults: true,
       })
       .on('error', (err) => {
-        console.error('Streaming error:', err);
-        const client = sseClients.get(sessionId);
-        if (client) {
-          client.write(
-            `event: streamError\ndata: ${JSON.stringify({
-              error: err.toString(),
-            })}\n\n`
-          );
-        }
+        const errorEnvelope = {
+          ovon: {
+            schema: { version: '0.9.4' },
+            conversation: { id: sessionId },
+            sender: {
+              speakerUri: 'tag:nlip-pwa,2025:0001',
+              serviceUrl: 'http://localhost:3000',
+            },
+            events: [
+              {
+                eventType: 'utterance',
+                parameters: {
+                  dialogEvent: {
+                    speakerUri: 'tag:nlip-pwa,2025:0001',
+                    span: { startTime: new Date().toISOString() },
+                    features: {
+                      text: {
+                        mimeType: 'text/plain',
+                        tokens: [{ value: `Error: ${err.toString()}` }],
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        };
+        client.write(`data: ${JSON.stringify(errorEnvelope)}\n\n`);
       })
       .on('data', (data) => {
-        if (data.results && data.results[0]) {
+        if (data.results?.[0]) {
           const transcript = data.results[0].alternatives[0].transcript;
           const isFinal = data.results[0].isFinal;
 
-          const client = sseClients.get(sessionId);
-          if (client) {
-            client.write(
-              `event: transcriptionData\ndata: ${JSON.stringify({
-                transcript,
-                isFinal,
-              })}\n\n`
-            );
-          }
+          const transcriptionEnvelope = {
+            ovon: {
+              schema: { version: '0.9.4' },
+              conversation: { id: sessionId },
+              sender: {
+                speakerUri: 'tag:nlip-pwa,2025:0001',
+                serviceUrl: 'http://localhost:3000',
+              },
+              events: [
+                {
+                  eventType: 'utterance',
+                  parameters: {
+                    dialogEvent: {
+                      speakerUri: 'tag:nlip-pwa,2025:0001',
+                      span: { startTime: new Date().toISOString() },
+                      features: {
+                        text: {
+                          mimeType: 'text/plain',
+                          tokens: [{ value: transcript }],
+                        },
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          };
+          client.write(`data: ${JSON.stringify(transcriptionEnvelope)}\n\n`);
         }
       });
 
-    // Store the stream for this session
     activeStreams.set(sessionId, recognizeStream);
-    console.log(`Stream started successfully for session: ${sessionId}`);
     res.status(200).json({ status: 'Stream started' });
   } catch (error) {
     console.error(`Error creating stream for session ${sessionId}:`, error);
@@ -206,23 +205,40 @@ app.post('/start/:sessionId', async (req, res) => {
 // Handle audio data
 app.post(
   '/audio/:sessionId',
-  express.raw({ type: 'audio/*', limit: '1mb' }),
+  express.raw({ type: 'application/json', limit: '1mb' }),
   (req, res) => {
     const sessionId = req.params.sessionId;
-    const recognizeStream = activeStreams.get(sessionId);
+    const envelope = req.body;
 
-    if (!recognizeStream) {
-      console.error(`No active stream found for session: ${sessionId}`);
+    // Validate OVON envelope
+    if (
+      !envelope?.ovon?.conversation?.id ||
+      envelope.ovon.conversation.id !== sessionId
+    ) {
       return res
         .status(400)
-        .json({
-          error:
-            'No active stream for this session. Please start a new recording.',
-        });
+        .json({ error: 'Invalid OVON envelope or session ID mismatch' });
+    }
+
+    const recognizeStream = activeStreams.get(sessionId);
+    if (!recognizeStream) {
+      return res
+        .status(400)
+        .json({ error: 'No active stream for this session' });
     }
 
     try {
-      recognizeStream.write(req.body);
+      // Extract audio data from OVON envelope
+      const audioData =
+        envelope.ovon.events[0]?.parameters?.dialogEvent?.features?.audio
+          ?.tokens[0]?.value;
+      if (!audioData) {
+        return res.status(400).json({ error: 'No audio data in envelope' });
+      }
+
+      // Convert base64 to buffer and write to stream
+      const audioBuffer = Buffer.from(audioData, 'base64');
+      recognizeStream.write(audioBuffer);
       res.status(200).json({ status: 'Audio received' });
     } catch (error) {
       console.error(`Error processing audio for session ${sessionId}:`, error);
@@ -248,5 +264,5 @@ app.post('/stop/:sessionId', (req, res) => {
 // Start the server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`API Server listening on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });

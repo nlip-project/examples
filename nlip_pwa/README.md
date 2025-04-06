@@ -2,8 +2,6 @@
 
 # NLIP-PWA
 
-NLIP April 2025
-
 This is a Progressive Web App for demonstrating the Natural Language Interaction Protocol in application.
 
 ## Getting started

@@ -101,9 +101,28 @@ export class PageHome extends SignalWatcher(PageElement) {
       padding: 16px 0;
     }
 
-    .logo {
-      color: #2563eb;
-      font-size: 24px;
+    .history-button {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: clamp(32px, 5vw, 40px);
+      height: clamp(32px, 5vw, 40px);
+      padding: 0;
+      border: none;
+      border-radius: clamp(6px, 1.5vw, 8px);
+      background: #f0f0f0;
+      color: #64748b;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .history-button:hover {
+      background: #e2e8f0;
+    }
+
+    .history-button svg {
+      width: clamp(20px, 4vw, 24px);
+      height: clamp(20px, 4vw, 24px);
     }
 
     .user-avatar {
@@ -879,42 +898,17 @@ export class PageHome extends SignalWatcher(PageElement) {
           : ''}
 
         <div class="header">
-          <div class="logo">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+          <button class="history-button" @click=${() => Router.go('/chat')}>
+            <svg viewBox="0 0 24 24" fill="currentColor">
               <path
-                d="M12 2L2 12h3v8h6v-6h2v6h6v-8h3L12 2zm0 2.84L19.5 12h-1.5v8h-4v-6H10v6H6v-8H4.5L12 4.84z"
+                d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"
               />
             </svg>
-          </div>
+          </button>
           <div class="user-avatar">M</div>
         </div>
 
         <div class="main-content">
-          <div class="quick-actions">
-            <button
-              class="action-button"
-              @click=${() => (window.location.href = '/scan')}
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M3 5v4h2V5h4V3H5c-1.1 0-2 .9-2 2zm2 10H3v4c0 1.1.9 2 2 2h4v-2H5v-4zm14 4h-4v2h4c1.1 0 2-.9 2-2v-4h-2v4zm0-16h-4v2h4v4h2V5c0-1.1-.9-2-2-2z"
-                />
-              </svg>
-              Scan QR
-            </button>
-            <button
-              class="action-button"
-              @click=${() => (window.location.href = '/map')}
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path
-                  d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"
-                />
-              </svg>
-              Map
-            </button>
-          </div>
-
           <div class="title-section">
             <h1 class="title">Ask <span>anything</span> you need help with.</h1>
           </div>
@@ -1167,40 +1161,36 @@ export class PageHome extends SignalWatcher(PageElement) {
     `;
   }
 
-  private navigateToChat(prompt?: string) {
-    if (!prompt) return;
-
-    const pendingImageData = sessionStorage.getItem('pendingImageData');
-    const pendingDocumentData = sessionStorage.getItem('pendingDocumentData');
-    const pendingDocumentContent = sessionStorage.getItem(
-      'pendingDocumentContent'
-    );
-
-    let chatData: any = {
-      userPrompt: prompt,
+  private navigateToChat(text: string) {
+    // Store the chat data in sessionStorage
+    const chatData = {
+      userPrompt: text,
+      imageData: this.previewImage,
+      imageType: this.previewImage ? 'image/jpeg' : undefined,
+      documentName: this.previewDocumentName,
+      documentType: this.previewDocumentName ? 'application/pdf' : undefined,
+      documentContent: this.previewDocumentName
+        ? sessionStorage.getItem('pendingDocumentContent')
+        : undefined,
+      shouldCreateNewChat: true, // Flag to indicate we should create a new chat
     };
 
-    if (pendingImageData) {
-      const imageData = JSON.parse(pendingImageData);
-      chatData = {
-        ...chatData,
-        imageData: imageData.data,
-        imageType: imageData.type,
-      };
-      sessionStorage.removeItem('pendingImageData');
-    } else if (pendingDocumentData && pendingDocumentContent) {
-      const documentData = JSON.parse(pendingDocumentData);
-      chatData = {
-        ...chatData,
-        documentName: documentData.name,
-        documentType: documentData.type,
-        documentContent: pendingDocumentContent,
-      };
-      sessionStorage.removeItem('pendingDocumentData');
-      sessionStorage.removeItem('pendingDocumentContent');
-    }
-
     sessionStorage.setItem('chatData', JSON.stringify(chatData));
+
+    // Clear the current input and previews
+    const input = this.renderRoot?.querySelector(
+      '.chat-input'
+    ) as HTMLTextAreaElement;
+    if (input) {
+      input.value = '';
+    }
+    this.previewImage = null;
+    this.previewDocumentName = null;
+    sessionStorage.removeItem('pendingImageData');
+    sessionStorage.removeItem('pendingDocumentData');
+    sessionStorage.removeItem('pendingDocumentContent');
+
+    // Navigate to chat page
     Router.go('/chat');
   }
 
