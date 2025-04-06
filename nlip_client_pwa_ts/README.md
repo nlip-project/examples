@@ -129,3 +129,4 @@ The speech-to-text functionality is implemented using:
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
