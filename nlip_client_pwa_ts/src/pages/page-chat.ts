@@ -43,6 +43,7 @@ interface ChatSession {
 
 @customElement('page-chat')
 export class PageChat extends SignalWatcher(PageElement) {
+  // ===== State Management =====
   @state() private messages: ChatMessage[] = [];
   @state() private chatSessions: ChatSession[] = [];
   @state() private currentSessionId: string | null = null;
@@ -71,6 +72,7 @@ export class PageChat extends SignalWatcher(PageElement) {
   @state() private currentPartial = '';
   @state() private partialTranscriptions: string[] = [];
 
+  // ===== Constants and Configuration =====
   private static readonly STORAGE_KEY = 'chat-sessions';
   private _typingTimeout: NodeJS.Timeout | null = null;
   private documentClickHandler: (e: MouseEvent) => void;
@@ -115,6 +117,7 @@ export class PageChat extends SignalWatcher(PageElement) {
     }
   }
 
+  // ===== Chat Session Management =====
   private loadChatSessions() {
     console.log('Loading chat sessions from localStorage...');
     const savedSessions = localStorage.getItem(PageChat.STORAGE_KEY);
@@ -229,6 +232,7 @@ export class PageChat extends SignalWatcher(PageElement) {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
   }
 
+  // ===== Message Management =====
   private addMessage(
     type: 'user' | 'ai',
     content: string,
@@ -272,6 +276,7 @@ export class PageChat extends SignalWatcher(PageElement) {
     }, 5000);
   }
 
+  // ===== UI Interaction Handlers =====
   private async handleSend() {
     if (!this.chatInput?.value) return;
 
@@ -390,6 +395,7 @@ export class PageChat extends SignalWatcher(PageElement) {
     this.imageInput?.click();
   }
 
+  // ===== File Upload Management =====
   private async handleImageUpload(event: Event) {
     const input = event.target as HTMLInputElement;
     if (!input.files?.length) return;
@@ -505,6 +511,7 @@ export class PageChat extends SignalWatcher(PageElement) {
     }
   }
 
+  // ===== Message Editing and Context Menu =====
   private renderMessageContent(message: ChatMessage) {
     if (message.type === 'ai') {
       return html`<div class="message-content markdown">
@@ -630,6 +637,7 @@ export class PageChat extends SignalWatcher(PageElement) {
     }
   }
 
+  // ===== Transcription and Voice Input =====
   private handleTranscriptionUpdate(event: CustomEvent) {
     const { transcript, isFinal } = event.detail;
     console.log(
@@ -1105,6 +1113,7 @@ export class PageChat extends SignalWatcher(PageElement) {
     `;
   }
 
+  // ===== Lifecycle Methods =====
   connectedCallback(): void {
     super.connectedCallback?.();
     // Prevent zooming on mobile devices
@@ -1226,6 +1235,7 @@ export class PageChat extends SignalWatcher(PageElement) {
     };
   }
 
+  // ===== Styling =====
   static styles = css`
     ${chatInputStyles}
 

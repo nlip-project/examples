@@ -9,11 +9,11 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Express setup
+// ===== Express and Server Configuration =====
 const app = express();
 const server = http.createServer(app);
 
-// Initialize Google Speech client
+// ===== Google Speech Client Initialization =====
 let speechClient: SpeechClient;
 try {
   const keyFilePath = path.join(
@@ -33,7 +33,7 @@ try {
   }
 }
 
-// Enable CORS
+// ===== Middleware Configuration =====
 app.use(
   cors({
     origin: ['http://localhost:8000', 'http://127.0.0.1:8000'],
@@ -42,13 +42,13 @@ app.use(
   })
 );
 
-// Add JSON body parsing
 app.use(express.json());
 
-// Store active streams and SSE clients by session ID
+// ===== State Management =====
 const activeStreams = new Map<string, any>();
 const sseClients = new Map<string, any>();
 
+// ===== API Endpoints =====
 // OVON Assistant Manifest endpoint
 app.get('/manifest', (req, res) => {
   try {
@@ -115,6 +115,7 @@ app.post('/start/:sessionId', async (req, res) => {
     return res.status(400).json({ error: 'No active SSE connection' });
   }
 
+  // Use the GOOGLE STT speech client to stream the transcription -----------------------------------
   try {
     const recognizeStream = speechClient
       .streamingRecognize({
@@ -261,7 +262,7 @@ app.post('/stop/:sessionId', (req, res) => {
   res.status(200).json({ status: 'Stream stopped' });
 });
 
-// Start the server
+// ===== Server Startup =====
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

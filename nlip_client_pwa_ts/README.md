@@ -2,8 +2,6 @@
 
 # NLIP-PWA
 
-NLIP April 2025
-
 This is a Progressive Web App for demonstrating the Natural Language Interaction Protocol in application.
 
 ## Getting started
@@ -129,4 +127,3 @@ The speech-to-text functionality is implemented using:
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-

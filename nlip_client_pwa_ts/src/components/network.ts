@@ -11,6 +11,7 @@ const API_ENDPOINTS = {
   upload: `${BASE_URL}/upload`,
 };
 
+// ===== NLIP message format Definitions =====
 type Format =
   | 'text'
   | 'binary'
@@ -71,14 +72,11 @@ interface ChatSession {
   lastUpdated: number;
 }
 
-// Track if we've sent the initial message and whether server stores chat history
+// ===== State Management =====
 let hasSentInitialMessage = false;
 let serverStoresChatHistory = false;
 
-/**
- * Send the initial message to establish the NLIP connection
- * This must be called before any other communication
- */
+// ===== Initialization and Setup =====
 export async function sendInitialMessage(): Promise<void> {
   if (hasSentInitialMessage) {
     return;
@@ -88,7 +86,7 @@ export async function sendInitialMessage(): Promise<void> {
   serverStoresChatHistory = false;
   hasSentInitialMessage = true;
 
-  // For now, we'll just set the flags without making an actual request
+  // For now, just set the flags without making an actual request
   // In the future, this would be replaced with actual server communication
   /*
   const request: Message = {
@@ -129,9 +127,7 @@ export async function sendInitialMessage(): Promise<void> {
   */
 }
 
-/**
- * Format chat history for sending to server
- */
+// ===== Chat History Management =====
 function formatChatHistory(session: ChatSession): string {
   const history = session.messages
     .map((msg) => `${msg.type === 'user' ? 'user' : 'AI'}: ${msg.content}`)
@@ -140,9 +136,6 @@ function formatChatHistory(session: ChatSession): string {
   return history;
 }
 
-/**
- * Get the current chat session from localStorage
- */
 function getCurrentChatSession(): ChatSession | null {
   // Check if localStorage is available
   if (typeof localStorage === 'undefined') {
@@ -189,9 +182,7 @@ function getCurrentChatSession(): ChatSession | null {
   }
 }
 
-/**
- * Send a text message to the NLIP endpoint
- */
+// ===== Message Sending Functions =====
 export async function sendTextMessage(
   text: string,
   includeHistory = true
@@ -238,9 +229,6 @@ export async function sendTextMessage(
   }
 }
 
-/**
- * Send an image with an optional prompt to the NLIP endpoint
- */
 export async function sendImageMessage(
   prompt: string,
   base64Image: string,
@@ -302,9 +290,7 @@ export async function sendImageMessage(
   }
 }
 
-/**
- * Request a redirection URL for large file uploads
- */
+// ===== File Upload Functions =====
 export async function requestUploadUrl(): Promise<string> {
   const request: Message = {
     control: true,
@@ -337,10 +323,6 @@ export async function requestUploadUrl(): Promise<string> {
   }
 }
 
-/**
- * Upload a file to the server
- * Returns the response data from the server
- */
 export async function handleFileUpload(
   file: File
 ): Promise<{ message?: string; url?: string }> {

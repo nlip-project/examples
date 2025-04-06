@@ -19,6 +19,7 @@ import { StreamingTranscribe } from '../components/streaming-transcribe.js';
 
 @customElement('page-home')
 export class PageHome extends SignalWatcher(PageElement) {
+  // ===== State Management =====
   @query('#text-input') textInput?: HTMLTextAreaElement;
   @query('#image-input') imageInput?: HTMLInputElement;
   @query('#document-input') documentInput?: HTMLInputElement;
@@ -35,6 +36,7 @@ export class PageHome extends SignalWatcher(PageElement) {
   @state() private currentPartial = '';
   @state() private partialTranscriptions: string[] = [];
 
+  // ===== Constants and Configuration =====
   private _typingTimeout: NodeJS.Timeout | null = null;
   private documentInputRef = createRef<HTMLInputElement>();
   private transcribeElementRef = createRef<StreamingTranscribe>();
@@ -43,37 +45,18 @@ export class PageHome extends SignalWatcher(PageElement) {
     super();
   }
 
-  firstUpdated() {
-    super.firstUpdated();
-
-    // Check if speech recognition is supported
-    this.checkSpeechSupport();
-
-    // Log component status for debugging
-    setTimeout(() => {
-      const element = this.renderRoot.querySelector('streaming-transcribe');
-      console.log('[PageHome] First updated, element found:', !!element);
-      if (element) {
-        console.log(
-          '[PageHome] Element methods:',
-          Object.getOwnPropertyNames(Object.getPrototypeOf(element))
-        );
-      }
-    }, 100);
-  }
-
-  private checkSpeechSupport() {
-    // Check if browser supports MediaRecorder API
-    if (window.MediaRecorder) {
-      console.log('[PageHome] MediaRecorder API is supported');
-      this.isSpeechSupported = true;
-    } else {
-      console.warn(
-        '[PageHome] MediaRecorder API is not supported in this browser'
-      );
-      this.isSpeechSupported = false;
-    }
-  }
+  // private checkSpeechSupport() {
+  //   // Check if browser supports MediaRecorder API
+  //   if (window.MediaRecorder) {
+  //     console.log('[PageHome] MediaRecorder API is supported');
+  //     this.isSpeechSupported = true;
+  //   } else {
+  //     console.warn(
+  //       '[PageHome] MediaRecorder API is not supported in this browser'
+  //     );
+  //     this.isSpeechSupported = false;
+  //   }
+  // }
 
   static styles = css`
     ${chatInputStyles}
@@ -714,6 +697,7 @@ export class PageHome extends SignalWatcher(PageElement) {
     }
   `;
 
+  // ===== Transcription and Voice Input =====
   private handleTranscriptionUpdate(event: CustomEvent) {
     const { transcript, isFinal } = event.detail;
     console.log(
@@ -1161,6 +1145,7 @@ export class PageHome extends SignalWatcher(PageElement) {
     `;
   }
 
+  // ===== Navigation and Routing =====
   private navigateToChat(text: string) {
     // Store the chat data in sessionStorage
     const chatData = {
@@ -1194,6 +1179,7 @@ export class PageHome extends SignalWatcher(PageElement) {
     Router.go('/chat');
   }
 
+  // ===== File Upload Management =====
   private handleImageSelect() {
     if (this.imageInput) {
       this.imageInput.click();
@@ -1334,6 +1320,7 @@ export class PageHome extends SignalWatcher(PageElement) {
     }
   }
 
+  // ===== Status and Error Handling =====
   private showStatus(message: string, type: 'success' | 'error' | 'loading') {
     this.uploadStatus = message;
     this.statusType = type;

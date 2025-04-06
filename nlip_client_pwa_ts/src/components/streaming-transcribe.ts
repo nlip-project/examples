@@ -1,7 +1,9 @@
 /* stylelint-disable */
+// ===== Imports =====
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 
+// ===== Type Definitions =====
 interface OVONManifest {
   identification: {
     speakerUri: string;
@@ -59,8 +61,10 @@ interface OVONEnvelope {
   };
 }
 
+// ===== Component Definition =====
 @customElement('streaming-transcribe')
 export class StreamingTranscribe extends LitElement {
+  // ===== State Management =====
   @property({ type: Boolean }) hideUI = false;
   @state() private isRecording = false;
   @state() private isTranscribing = false;
@@ -69,17 +73,20 @@ export class StreamingTranscribe extends LitElement {
   @state() private manifest: OVONManifest | null = null;
   @state() private error: string | null = null;
 
+  // ===== Private Properties =====
   private mediaRecorder: MediaRecorder | null = null;
   private stream: MediaStream | null = null;
   private eventSource: EventSource | null = null;
   private sessionId: string | null = null;
 
+  // ===== Initialization =====
   constructor() {
     super();
     this.sessionId = Math.random().toString(36).substring(7);
     this.initializeManifest();
   }
 
+  // ===== Manifest Management =====
   private async initializeManifest() {
     try {
       const response = await fetch('http://localhost:3000/manifest');
@@ -93,6 +100,7 @@ export class StreamingTranscribe extends LitElement {
     }
   }
 
+  // ===== OVON Envelope Creation =====
   private createOVONEnvelope(eventType: string, content: any): OVONEnvelope {
     if (!this.manifest) {
       throw new Error('Manifest not initialized');
@@ -122,6 +130,7 @@ export class StreamingTranscribe extends LitElement {
     };
   }
 
+  // ===== Recording Management =====
   async startRecording() {
     if (!this.manifest) {
       this.error = 'Transcription service not initialized';
@@ -276,6 +285,7 @@ export class StreamingTranscribe extends LitElement {
     }
   }
 
+  // ===== UI Rendering =====
   render() {
     if (this.hideUI) {
       return html``;
@@ -305,6 +315,7 @@ export class StreamingTranscribe extends LitElement {
     `;
   }
 
+  // ===== Styling =====
   static styles = css`
     .container {
       display: flex;
