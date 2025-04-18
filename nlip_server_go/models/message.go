@@ -11,4 +11,5 @@ type Message struct {
 	Submessages *[]Message `json:"submessages,omitempty"`
 	Token       *string    `json:"token,omitempty"`     // JSON as string is ok?
 	Subtokens   *[]string  `json:"subtokens,omitempty"` // JSON as string is ok?
+	Label       string     `json:"label,omitempty"`
 }

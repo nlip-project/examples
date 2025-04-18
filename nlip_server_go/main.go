@@ -1,7 +1,7 @@
 package main
 
 import (
-	"nlip/auth"
+	"nlip/config"
 	"nlip/handlers"
 	"os"
 
@@ -19,7 +19,8 @@ func init() {
 
 func main() {
 	e := echo.New()
-
+	config.InitConversationID()
+	print(config.ConversationID)
 	// Allow for routes ending with or without '/'
 	e.Pre(middleware.AddTrailingSlash())
 
@@ -35,8 +36,8 @@ func main() {
 	}))
 
 	e.POST("/nlip/", handlers.HandleIncomingMessage)
-	e.POST("/upload/", handlers.UploadHandler)
-	auth.SetupAuth(e)
+	e.POST("/upload/:tag", handlers.UploadHandler)
+	// auth.SetupAuth(e)
 
 	// HTTPS
 	certFile := os.Getenv("CERT_FILE")
