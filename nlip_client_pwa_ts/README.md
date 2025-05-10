@@ -6,7 +6,8 @@ NLIP April 2025
 
 This is a Progressive Web App for demonstrating the Natural Language Interaction Protocol in application.
 
-[<img src="https://eecs441.eecs.umich.edu/img/admin/video.png">](https://youtu.be/LUjUFFMW3pc) ([slides](https://docs.google.com/presentation/d/106MGkniRG70-Q7HD7RzUb112qoL1A7QujSOFP93IDIY/edit?slide=id.g349254f61f3_0_734#slide=id.g349254f61f3_0_734))
+# Demo: ([slides](https://docs.google.com/presentation/d/106MGkniRG70-Q7HD7RzUb112qoL1A7QujSOFP93IDIY/edit?slide=id.g349254f61f3_0_734#slide=id.g349254f61f3_0_734))
+[<img src="https://eecs441.eecs.umich.edu/img/admin/video.png">](https://youtu.be/LUjUFFMW3pc)
 
 ## Getting started
 
