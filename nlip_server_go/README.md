@@ -4,8 +4,13 @@ NLIP April 2025
 
 Welcome to the NLIP Go Server! This project is a Go implementation of the NLIP server. It is built using the Echo web and Goth authentication frameworks. It demonstrates handling of various message types using the NLIP protocol along with LLAMA and LLava models.
 
-# Demo: ([slides](https://docs.google.com/presentation/d/1zHJCK9l_amqdXspjUXWdlQ57EVVfA-sX8uBnt_PTifU/))
+# Demo:
+
+History summary ([slides](https://docs.google.com/presentation/d/1zHJCK9l_amqdXspjUXWdlQ57EVVfA-sX8uBnt_PTifU/))
 [<img src="https://eecs441.eecs.umich.edu/img/admin/video.png">](https://youtu.be/Z60kuGtE43w)
+
+Redirect ([slides](https://docs.google.com/presentation/d/1Q06MA9nAcI02TuKdhQGBqQAXfOVWHY8TJOYyCImymbs/))
+[<img src="https://eecs441.eecs.umich.edu/img/admin/video.png">](https://youtu.be/bWf4qLx2UOk)
 
 ## Quickstart
 
